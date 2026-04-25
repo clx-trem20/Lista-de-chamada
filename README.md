@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
@@ -219,8 +218,11 @@
             <h1>Chamada CLX</h1>
             <div class="nav-buttons">
                 <button class="btn-action" onclick="toggleSheet(true)">📑 Planilha</button>
+                <button class="btn-action" onclick="downloadBackup()">📥 Baixar Lista</button>
+                <button class="btn-action" onclick="document.getElementById('import-file').click()">📤 Carregar Lista</button>
                 <button class="btn-action" onclick="showSection('users')">🔑 Acessos</button>
                 <button class="btn-action" style="color:var(--accent-red)" onclick="location.reload()">Sair</button>
+                <input type="file" id="import-file" style="display:none;" accept=".json" onchange="importBackup(event)">
             </div>
         </header>
 
@@ -319,25 +321,68 @@
         function setupListeners() {
             if (!currentUser) return;
 
-            // Alunos (Público no contexto do App)
             const studentsCol = collection(db, 'artifacts', appId, 'public', 'data', 'students');
             onSnapshot(studentsCol, (snap) => {
                 studentsList = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderStudents();
-            }, (err) => console.error("Erro alunos:", err));
+            });
 
-            // Usuários/Acessos
             const usersCol = collection(db, 'artifacts', appId, 'public', 'data', 'users');
             onSnapshot(usersCol, (snap) => {
                 usersList = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 if (usersList.length === 0) {
-                    // Criar usuário padrão se banco estiver vazio
                     addDoc(usersCol, { login: "CLX", pass: "02072007" });
                 }
             });
         }
 
-        // --- FUNÇÕES GLOBAIS (Expostas para o HTML) ---
+        // --- FUNÇÕES DE BACKUP ---
+        window.downloadBackup = () => {
+            if (studentsList.length === 0) return alert("Não há alunos para exportar.");
+            
+            // Exportamos apenas os dados essenciais (nome e status)
+            const exportData = studentsList.map(s => ({ name: s.name, present: s.present }));
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `backup_chamada_clx_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`;
+            link.click();
+        };
+
+        window.importBackup = async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (!Array.isArray(data)) throw new Error();
+
+                    if (confirm(`Deseja importar ${data.length} alunos? Isso será adicionado à sua lista atual.`)) {
+                        const col = collection(db, 'artifacts', appId, 'public', 'data', 'students');
+                        for (let item of data) {
+                            if (item.name) {
+                                await addDoc(col, { 
+                                    name: item.name, 
+                                    present: item.present ?? true, 
+                                    createdAt: Date.now() 
+                                });
+                            }
+                        }
+                        alert("Importação concluída!");
+                    }
+                } catch (err) {
+                    alert("Erro ao ler arquivo. Certifique-se que é um JSON válido exportado pelo sistema.");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = ""; // Reseta o input
+        };
+
+        // --- FUNÇÕES GLOBAIS ---
         window.validateAccess = () => {
             const userIn = document.getElementById('user-input').value;
             const passIn = document.getElementById('pass-input').value;
@@ -376,7 +421,7 @@
         };
 
         window.removeStudent = async (id) => {
-            if (confirm("Apagar aluno?")) {
+            if (confirm("Apagar este aluno permanentemente?")) {
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', id);
                 await deleteDoc(docRef);
             }
@@ -404,7 +449,6 @@
         function renderStudents() {
             const tbody = document.getElementById('student-table-body');
             tbody.innerHTML = "";
-            // Ordenar por data de criação para manter ordem de inserção
             const sorted = [...studentsList].sort((a, b) => a.createdAt - b.createdAt);
             sorted.forEach(s => {
                 const tr = document.createElement('tr');
