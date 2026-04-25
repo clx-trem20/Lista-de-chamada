@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
@@ -165,20 +166,28 @@
         }
 
         .list-container {
-            background: var(--card-bg);
+            background: #e2e8f0; /* Fundo cinza claro para destacar o texto preto */
             border-radius: 15px;
             overflow: hidden;
         }
 
         table { width: 100%; border-collapse: collapse; }
-        th { background: rgba(0,0,0,0.2); text-align: left; padding: 15px; color: var(--text-dim); }
-        td { padding: 15px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        th { background: #cbd5e1; text-align: left; padding: 15px; color: #1e293b; font-weight: bold; }
+        
+        /* AJUSTE DE COR DOS NOMES PARA PRETO */
+        td { 
+            padding: 15px; 
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            color: #000000 !important; /* FORÇA COR PRETA */
+            font-size: 1rem;
+            font-weight: 500;
+        }
 
         .badge { padding: 6px 12px; border-radius: 20px; cursor: pointer; border: none; font-weight: 600; }
-        .badge-present { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
-        .badge-absent { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+        .badge-present { background: #22c55e; color: white; }
+        .badge-absent { background: #ef4444; color: white; }
 
-        .btn-delete { color: var(--accent-red); background: none; border: 1px solid rgba(239, 68, 68, 0.3); padding: 5px 10px; border-radius: 6px; cursor: pointer; }
+        .btn-delete { color: #b91c1c; background: #fee2e2; border: 1px solid #f87171; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
 
         /* --- PLANILHA OVERLAY --- */
         #sheet-overlay {
@@ -194,9 +203,33 @@
             overflow-y: auto;
         }
 
-        .sheet-content { max-width: 800px; margin: 0 auto; background: white; color: black; padding: 40px; border-radius: 5px; }
-        .sheet-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        .sheet-table th, .sheet-table td { border: 1px solid #ddd; padding: 10px; color: black; }
+        .sheet-content { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: white; 
+            color: black; 
+            padding: 40px; 
+            border-radius: 5px; 
+        }
+        
+        .sheet-table { width: 100%; border-collapse: collapse; margin-top: 20px; border: 1px solid #ddd; }
+        
+        .sheet-table th, .sheet-table td { 
+            border: 1px solid #ddd; 
+            padding: 10px; 
+            color: #000 !important; 
+            text-align: left;
+        }
+        
+        .sheet-table th {
+            background: #f1f5f9;
+            font-weight: bold;
+        }
+
+        @media print {
+            #sheet-overlay { position: static; background: white; padding: 0; }
+            .btn-action, button { display: none; }
+        }
     </style>
 </head>
 <body>
@@ -255,23 +288,46 @@
 
         <div id="section-users" style="display:none">
             <div class="section-container">
-                <button class="btn-action" onclick="showSection('attendance')">Voltar</button><br><br>
+                <div style="display:flex; justify-content: space-between; align-items:center">
+                    <h3>Gerenciar Acessos</h3>
+                    <button class="btn-action" onclick="showSection('attendance')">Voltar</button>
+                </div><br>
                 <div class="input-group">
                     <input type="text" id="new-user-login" placeholder="Login">
                     <input type="password" id="new-user-pass" placeholder="Senha">
                     <button class="btn-save" onclick="addNewUser()">Criar Acesso</button>
                 </div>
-                <tbody id="users-list-body"></tbody>
+                <div class="list-container" style="background: #1e293b;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="color: white; background: rgba(0,0,0,0.3)">Usuário</th>
+                                <th style="text-align:right; color: white; background: rgba(0,0,0,0.3)">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-list-body"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </main>
 
     <div id="sheet-overlay">
         <div class="sheet-content">
-            <button onclick="toggleSheet(false)">Fechar</button>
-            <button onclick="window.print()">PDF</button>
+            <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 20px;">
+                <h2 style="color:black">Relatório de Chamada</h2>
+                <div>
+                    <button class="btn-action" style="background:#000; color:#fff" onclick="toggleSheet(false)">Fechar</button>
+                    <button class="btn-action" style="background:#10b981; color:#fff" onclick="window.print()">Imprimir PDF</button>
+                </div>
+            </div>
             <table class="sheet-table">
-                <thead><tr><th>Nome</th><th>Status</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Nome do Aluno</th>
+                        <th>Situação</th>
+                    </tr>
+                </thead>
                 <tbody id="sheet-table-body"></tbody>
             </table>
         </div>
@@ -301,7 +357,6 @@
         let studentsList = [];
         let usersList = [];
 
-        // --- AUTH E INIT ---
         async function init() {
             try {
                 await signInAnonymously(auth);
@@ -333,18 +388,15 @@
                 if (usersList.length === 0) {
                     addDoc(usersCol, { login: "CLX", pass: "02072007" });
                 }
+                renderUsers();
             });
         }
 
-        // --- FUNÇÕES DE BACKUP ---
         window.downloadBackup = () => {
             if (studentsList.length === 0) return alert("Não há alunos para exportar.");
-            
-            // Exportamos apenas os dados essenciais (nome e status)
             const exportData = studentsList.map(s => ({ name: s.name, present: s.present }));
             const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
             const url = URL.createObjectURL(blob);
-            
             const link = document.createElement("a");
             link.href = url;
             link.download = `backup_chamada_clx_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`;
@@ -354,40 +406,27 @@
         window.importBackup = async (event) => {
             const file = event.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = async (e) => {
                 try {
                     const data = JSON.parse(e.target.result);
                     if (!Array.isArray(data)) throw new Error();
-
-                    if (confirm(`Deseja importar ${data.length} alunos? Isso será adicionado à sua lista atual.`)) {
+                    if (confirm(`Deseja importar ${data.length} alunos?`)) {
                         const col = collection(db, 'artifacts', appId, 'public', 'data', 'students');
                         for (let item of data) {
-                            if (item.name) {
-                                await addDoc(col, { 
-                                    name: item.name, 
-                                    present: item.present ?? true, 
-                                    createdAt: Date.now() 
-                                });
-                            }
+                            if (item.name) await addDoc(col, { name: item.name, present: item.present ?? true, createdAt: Date.now() });
                         }
-                        alert("Importação concluída!");
                     }
-                } catch (err) {
-                    alert("Erro ao ler arquivo. Certifique-se que é um JSON válido exportado pelo sistema.");
-                }
+                } catch (err) { alert("Erro ao ler arquivo."); }
             };
             reader.readAsText(file);
-            event.target.value = ""; // Reseta o input
+            event.target.value = "";
         };
 
-        // --- FUNÇÕES GLOBAIS ---
         window.validateAccess = () => {
             const userIn = document.getElementById('user-input').value;
             const passIn = document.getElementById('pass-input').value;
             const found = usersList.find(u => u.login === userIn && u.pass === passIn);
-
             if (found) {
                 document.getElementById('lock-screen').classList.add('hidden');
                 document.getElementById('app-content').style.display = 'block';
@@ -421,7 +460,7 @@
         };
 
         window.removeStudent = async (id) => {
-            if (confirm("Apagar este aluno permanentemente?")) {
+            if (confirm("Apagar permanentemente?")) {
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', id);
                 await deleteDoc(docRef);
             }
@@ -434,6 +473,13 @@
             const col = collection(db, 'artifacts', appId, 'public', 'data', 'users');
             await addDoc(col, { login, pass });
             alert("Acesso criado!");
+        };
+
+        window.removeUser = async (id) => {
+            if(usersList.length <= 1) return alert("Não é possível remover o único acesso.");
+            if(confirm("Remover este acesso?")) {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', id));
+            }
         };
 
         window.showSection = (id) => {
@@ -453,7 +499,7 @@
             sorted.forEach(s => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td>${s.name}</td>
+                    <td style="color: #000000 !important;">${s.name}</td>
                     <td style="text-align:center">
                         <button class="badge ${s.present ? 'badge-present' : 'badge-absent'}" onclick="togglePresence('${s.id}', ${s.present})">
                             ${s.present ? 'PRESENÇA' : 'FALTA'}
@@ -467,12 +513,28 @@
             });
         }
 
+        function renderUsers() {
+            const tbody = document.getElementById('users-list-body');
+            if(!tbody) return;
+            tbody.innerHTML = "";
+            usersList.forEach(u => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="color: white">${u.login}</td>
+                    <td style="text-align:right">
+                        <button class="btn-delete" onclick="removeUser('${u.id}')">Remover</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
         function renderSheet() {
             const tbody = document.getElementById('sheet-table-body');
             tbody.innerHTML = "";
             const sorted = [...studentsList].sort((a, b) => a.name.localeCompare(b.name));
             sorted.forEach(s => {
-                tbody.innerHTML += `<tr><td>${s.name}</td><td>${s.present ? 'PRESENÇA' : 'FALTA'}</td></tr>`;
+                tbody.innerHTML += `<tr><td style="color: black !important;">${s.name}</td><td style="color: ${s.present ? 'green' : 'red'}; font-weight: bold">${s.present ? 'PRESENÇA' : 'FALTA'}</td></tr>`;
             });
         }
 
