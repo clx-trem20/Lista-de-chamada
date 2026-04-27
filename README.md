@@ -1,9 +1,10 @@
-<!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Chamada Profissional - CLX</title>
+    <!-- Biblioteca para exportar Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -279,7 +280,7 @@
             <h1>Chamada CLX</h1>
             <div class="nav-buttons">
                 <button class="btn-action" onclick="toggleSheet(true)">📑 Planilha</button>
-                <button class="btn-action" onclick="downloadBackup()">📥 Baixar Lista</button>
+                <button class="btn-action" onclick="downloadBackup()">📥 Baixar Lista (JSON)</button>
                 <button class="btn-action" onclick="document.getElementById('import-file').click()">📤 Carregar Lista</button>
                 <button class="btn-action" onclick="showSection('users')">🔑 Acessos</button>
                 <button class="btn-action" style="color:var(--accent-red)" onclick="location.reload()">Sair</button>
@@ -351,10 +352,11 @@
                 <h2 style="color:black">Relatório de Chamada</h2>
                 <div>
                     <button class="btn-action" style="background:#000; color:#fff" onclick="toggleSheet(false)">Fechar</button>
+                    <button class="btn-action" style="background:#1e40af; color:#fff" onclick="exportToExcel()">📥 Baixar Excel</button>
                     <button class="btn-action" style="background:#10b981; color:#fff" onclick="window.print()">Imprimir PDF</button>
                 </div>
             </div>
-            <table class="sheet-table">
+            <table class="sheet-table" id="table-to-excel">
                 <thead>
                     <tr>
                         <th>Nome do Aluno</th>
@@ -434,6 +436,27 @@
             link.href = url;
             link.download = `backup_chamada_clx_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`;
             link.click();
+        };
+
+        window.exportToExcel = () => {
+            if (studentsList.length === 0) return alert("Não há dados para exportar.");
+            
+            // Prepara os dados formatados para o Excel
+            const dataForExcel = studentsList
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map(s => ({
+                    "Nome do Aluno": s.name,
+                    "Situação": s.present ? "PRESENÇA" : "FALTA"
+                }));
+
+            // Cria uma nova planilha (workbook)
+            const worksheet = XLSX.utils.json_to_sheet(dataForExcel);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Chamada CLX");
+
+            // Gera o download do arquivo .xlsx
+            const fileName = `Chamada_CLX_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`;
+            XLSX.writeFile(workbook, fileName);
         };
 
         window.importBackup = async (event) => {
@@ -530,10 +553,7 @@
             const searchTerm = document.getElementById('search-input').value.toLowerCase();
             tbody.innerHTML = "";
 
-            // ORDEM ALFABÉTICA
             const sorted = [...studentsList].sort((a, b) => a.name.localeCompare(b.name));
-            
-            // FILTRAGEM (BÚSSOLA)
             const filtered = sorted.filter(s => s.name.toLowerCase().includes(searchTerm));
 
             filtered.forEach(s => {
