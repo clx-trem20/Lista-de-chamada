@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
@@ -214,6 +215,17 @@
 
         .btn-delete { color: #b91c1c; background: #fee2e2; border: 1px solid #f87171; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
 
+        /* --- CONTADOR --- */
+        .counter-badge {
+            background: var(--accent-blue);
+            color: #0f172a;
+            padding: 4px 12px;
+            border-radius: 8px;
+            font-weight: 800;
+            font-size: 0.9rem;
+            margin-left: 10px;
+        }
+
         /* --- HISTÓRICO CARDS --- */
         .history-card {
             background: #334155;
@@ -327,6 +339,11 @@
 
             <div class="search-container">
                 <input type="text" id="search-input" class="search-input" placeholder="🔍 Pesquisar nome do aluno (Bússola)..." oninput="renderStudents()">
+            </div>
+
+            <div style="margin-bottom: 10px; display: flex; align-items: center;">
+                <h3 style="font-size: 1.1rem;">Lista de Alunos</h3>
+                <span id="student-counter" class="counter-badge">0 Alunos</span>
             </div>
 
             <div class="list-container">
@@ -611,10 +628,16 @@
 
         window.renderStudents = () => {
             const tbody = document.getElementById('student-table-body');
+            const counterSpan = document.getElementById('student-counter');
             const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            
             tbody.innerHTML = "";
             const sorted = [...studentsList].sort((a, b) => a.name.localeCompare(b.name));
             const filtered = sorted.filter(s => s.name.toLowerCase().includes(searchTerm));
+            
+            // Atualiza o contador de acordo com a lista (incluindo filtro de busca)
+            counterSpan.innerText = `${filtered.length} ${filtered.length === 1 ? 'Aluno' : 'Alunos'}`;
+
             filtered.forEach(s => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
