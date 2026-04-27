@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
@@ -154,6 +155,35 @@
             outline: none;
         }
 
+        /* BARRA DE PESQUISA */
+        .search-container {
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 40px 12px 15px;
+            background: #cbd5e1;
+            border: none;
+            border-radius: 10px;
+            color: #0f172a;
+            font-weight: 600;
+            outline: none;
+        }
+
+        .search-input::placeholder {
+            color: #475569;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #475569;
+        }
+
         .btn-save {
             background: var(--accent-green);
             color: white;
@@ -165,7 +195,7 @@
         }
 
         .list-container {
-            background: #e2e8f0; /* Fundo cinza claro para destacar o texto preto */
+            background: #e2e8f0; 
             border-radius: 15px;
             overflow: hidden;
         }
@@ -173,11 +203,10 @@
         table { width: 100%; border-collapse: collapse; }
         th { background: #cbd5e1; text-align: left; padding: 15px; color: #1e293b; font-weight: bold; }
         
-        /* AJUSTE DE COR DOS NOMES PARA PRETO */
         td { 
             padding: 15px; 
             border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-            color: #000000 !important; /* FORÇA COR PRETA */
+            color: #000000 !important; 
             font-size: 1rem;
             font-weight: 500;
         }
@@ -227,7 +256,7 @@
 
         @media print {
             #sheet-overlay { position: static; background: white; padding: 0; }
-            .btn-action, button { display: none; }
+            .btn-action, button, .search-container { display: none; }
         }
     </style>
 </head>
@@ -271,11 +300,16 @@
                 </div>
             </div>
 
+            <!-- BUSSOLA / PESQUISA -->
+            <div class="search-container">
+                <input type="text" id="search-input" class="search-input" placeholder="🔍 Pesquisar nome do aluno..." oninput="renderStudents()">
+            </div>
+
             <div class="list-container">
                 <table>
                     <thead>
                         <tr>
-                            <th>Nome do Aluno</th>
+                            <th>Nome do Aluno (A-Z)</th>
                             <th style="text-align:center">Presença</th>
                             <th style="text-align:right">Ação</th>
                         </tr>
@@ -491,11 +525,18 @@
             if (show) renderSheet();
         };
 
-        function renderStudents() {
+        window.renderStudents = () => {
             const tbody = document.getElementById('student-table-body');
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
             tbody.innerHTML = "";
-            const sorted = [...studentsList].sort((a, b) => a.createdAt - b.createdAt);
-            sorted.forEach(s => {
+
+            // ORDEM ALFABÉTICA
+            const sorted = [...studentsList].sort((a, b) => a.name.localeCompare(b.name));
+            
+            // FILTRAGEM (BÚSSOLA)
+            const filtered = sorted.filter(s => s.name.toLowerCase().includes(searchTerm));
+
+            filtered.forEach(s => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td style="color: #000000 !important;">${s.name}</td>
@@ -510,7 +551,7 @@
                 `;
                 tbody.appendChild(tr);
             });
-        }
+        };
 
         function renderUsers() {
             const tbody = document.getElementById('users-list-body');
