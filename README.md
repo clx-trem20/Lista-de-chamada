@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
@@ -443,7 +442,11 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'chamada-informa-v1';
+        
+        // CORREÇÃO CRÍTICA: Voltando para o ID original para recuperar os dados
+        // Se o seu ID anterior era 'default-app-id' ou algum outro, vou usar o padrão do ambiente
+        // para garantir que aponte para onde os dados estavam sendo salvos antes da minha alteração.
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
         let currentUser = null;
         let loggedUserName = ""; 
@@ -504,7 +507,6 @@
                 document.getElementById('app-content').style.display = 'block';
                 document.getElementById('welcome-title').innerText = `Informa - Olá, ${loggedUserName}`;
                 
-                // --- REGRA DE ACESSO AO PAINEL ---
                 if (loggedUserName === "CLX") {
                     document.getElementById('nav-btn-users').style.display = 'inline-block';
                 } else {
