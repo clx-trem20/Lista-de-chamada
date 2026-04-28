@@ -1,8 +1,9 @@
+<!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Chamada Profissional - CLX</title>
+    <title>Sistema de Chamada Profissional - Informa</title>
     <!-- Biblioteca para exportar Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <style>
@@ -293,7 +294,7 @@
 
     <div id="lock-screen">
         <div class="login-card">
-            <h2>Chamada CLX</h2><br>
+            <h2>Chamada Informa</h2><br>
             <input type="text" id="user-input" class="input-field" placeholder="Usuário">
             <input type="password" id="pass-input" class="input-field" placeholder="Senha">
             <button class="btn-login" onclick="validateAccess()">DESBLOQUEAR</button>
@@ -303,7 +304,7 @@
 
     <main id="app-content">
         <header class="header">
-            <h1 id="welcome-title">Chamada CLX</h1>
+            <h1 id="welcome-title">Chamada Informa</h1>
             <div class="nav-buttons">
                 <button class="btn-action" onclick="showSection('attendance')">📋 Chamada</button>
                 <button class="btn-action" onclick="showSection('history')">📅 Histórico</button>
@@ -322,9 +323,12 @@
         <!-- SEÇÃO CHAMADA -->
         <div id="section-attendance">
             <div class="section-container">
-                <div style="display:flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                <div style="display:flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
                     <h3>Gerenciar Alunos</h3>
-                    <button class="btn-save" style="background: var(--accent-purple);" onclick="saveDailyCall()">💾 SALVAR CHAMADA DO DIA</button>
+                    <div style="display:flex; gap:10px">
+                        <button class="btn-save" style="background: var(--accent-red);" onclick="absentAllStudents()">🚫 DAR FALTA GERAL</button>
+                        <button class="btn-save" style="background: var(--accent-purple);" onclick="saveDailyCall()">💾 SALVAR CHAMADA DO DIA</button>
+                    </div>
                 </div>
                 <div class="input-group" style="flex-direction: column;">
                     <textarea id="bulk-names" placeholder="Nomes por linha..."></textarea>
@@ -337,7 +341,7 @@
             </div>
 
             <div class="search-container">
-                <input type="text" id="search-input" class="search-input" placeholder="🔍 Pesquisar nome do aluno (Bússola)..." oninput="renderStudents()">
+                <input type="text" id="search-input" class="search-input" placeholder="🔍 Pesquisar nome do aluno..." oninput="renderStudents()">
             </div>
 
             <div style="margin-bottom: 10px; display: flex; align-items: center;">
@@ -372,11 +376,11 @@
             </div>
         </div>
 
-        <!-- SEÇÃO ACESSOS (SÓ ADMIN CLX) -->
+        <!-- SEÇÃO ACESSOS -->
         <div id="section-users" style="display:none">
             <div class="section-container">
                 <div style="display:flex; justify-content: space-between; align-items:center">
-                    <h3>Gerenciar Acessos (Restrito ao Admin CLX)</h3>
+                    <h3>Gerenciar Acessos (Restrito ao Admin)</h3>
                 </div><br>
                 <div class="input-group">
                     <input type="text" id="new-user-login" placeholder="Login">
@@ -425,7 +429,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, deleteDoc, addDoc, query, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, deleteDoc, addDoc, query, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBiBWPAEjNjzWFrws6HnZ-_Kziiwq1d0Zs",
@@ -439,10 +443,10 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'chamada-clx-v1';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'chamada-informa-v1';
 
         let currentUser = null;
-        let loggedUserName = ""; // Armazena o login usado
+        let loggedUserName = ""; 
         let studentsList = [];
         let usersList = [];
         let historyList = [];
@@ -498,9 +502,9 @@
                 loggedUserName = found.login;
                 document.getElementById('lock-screen').classList.add('hidden');
                 document.getElementById('app-content').style.display = 'block';
-                document.getElementById('welcome-title').innerText = `CLX - Olá, ${loggedUserName}`;
+                document.getElementById('welcome-title').innerText = `Informa - Olá, ${loggedUserName}`;
                 
-                // --- REGRA DE OURO: Só CLX vê o botão de Acessos ---
+                // --- REGRA DE ACESSO AO PAINEL ---
                 if (loggedUserName === "CLX") {
                     document.getElementById('nav-btn-users').style.display = 'inline-block';
                 } else {
@@ -535,6 +539,19 @@
             await updateDoc(docRef, { present: !current });
         };
 
+        window.absentAllStudents = async () => {
+            if (studentsList.length === 0) return;
+            if (!confirm("Isso marcará FALTA para todos os alunos da lista. Continuar?")) return;
+            
+            const batch = writeBatch(db);
+            studentsList.forEach(student => {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', student.id);
+                batch.update(docRef, { present: false });
+            });
+            
+            await batch.commit();
+        };
+
         window.removeStudent = async (id) => {
             if (confirm("Apagar permanentemente este aluno?")) {
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', id);
@@ -556,7 +573,7 @@
             };
             const col = collection(db, 'artifacts', appId, 'public', 'data', 'history');
             await addDoc(col, historyEntry);
-            alert(`Chamada de ${dateStr} salva com sucesso no Histórico!`);
+            alert(`Chamada de ${dateStr} salva com sucesso no Histórico Informa!`);
         };
 
         window.downloadBackup = () => {
@@ -566,7 +583,7 @@
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = url;
-            link.download = `backup_alunos_clx_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`;
+            link.download = `backup_alunos_informa_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`;
             link.click();
         };
 
@@ -578,7 +595,7 @@
                 try {
                     const data = JSON.parse(e.target.result);
                     if (!Array.isArray(data)) throw new Error();
-                    if (confirm(`Deseja importar ${data.length} alunos?`)) {
+                    if (confirm(`Deseja importar ${data.length} alunos para o sistema Informa?`)) {
                         const col = collection(db, 'artifacts', appId, 'public', 'data', 'students');
                         for (let item of data) {
                             if (item.name) await addDoc(col, { name: item.name, present: item.present ?? true, createdAt: Date.now() });
@@ -605,7 +622,7 @@
                 let sheetName = `${entry.date.replace(/\//g, '-')}`;
                 XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
             });
-            XLSX.writeFile(workbook, `Historico_Completo_Chamada_CLX.xlsx`);
+            XLSX.writeFile(workbook, `Historico_Completo_Chamada_Informa.xlsx`);
         };
 
         window.exportToExcel = () => {
@@ -622,7 +639,7 @@
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Chamada");
             const dateLabel = currentViewingData ? currentViewingData.date.replace(/\//g, '-') : 'Atual';
-            XLSX.writeFile(workbook, `Chamada_CLX_${dateLabel}.xlsx`);
+            XLSX.writeFile(workbook, `Chamada_Informa_${dateLabel}.xlsx`);
         };
 
         window.renderStudents = () => {
@@ -634,7 +651,6 @@
             const sorted = [...studentsList].sort((a, b) => a.name.localeCompare(b.name));
             const filtered = sorted.filter(s => s.name.toLowerCase().includes(searchTerm));
             
-            // Atualiza o contador de acordo com a lista (incluindo filtro de busca)
             counterSpan.innerText = `${filtered.length} ${filtered.length === 1 ? 'Aluno' : 'Alunos'}`;
 
             filtered.forEach(s => {
@@ -659,7 +675,7 @@
             container.innerHTML = "";
             const sortedHistory = [...historyList].sort((a, b) => b.timestamp - a.timestamp);
             if (sortedHistory.length === 0) {
-                container.innerHTML = "<p style='color:var(--text-dim)'>Nenhum registro encontrado.</p>";
+                container.innerHTML = "<p style='color:var(--text-dim)'>Nenhum registro encontrado no sistema Informa.</p>";
                 return;
             }
             sortedHistory.forEach(entry => {
@@ -682,12 +698,12 @@
 
         window.openHistoryEntry = (entry) => {
             currentViewingData = entry;
-            document.getElementById('sheet-title').innerText = `Relatório de ${entry.date} (${entry.time})`;
+            document.getElementById('sheet-title').innerText = `Relatório Informa: ${entry.date} (${entry.time})`;
             toggleSheet(true);
         };
 
         window.deleteHistory = async (id) => {
-            if (confirm("Deseja apagar este registro de histórico?")) {
+            if (confirm("Deseja apagar este registro do histórico Informa?")) {
                 await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'history', id));
             }
         };
@@ -696,7 +712,7 @@
             const tbody = document.getElementById('sheet-table-body');
             tbody.innerHTML = "";
             const dataToRender = currentViewingData ? currentViewingData.data : studentsList;
-            if (!currentViewingData) document.getElementById('sheet-title').innerText = "Relatório de Chamada (Atual)";
+            if (!currentViewingData) document.getElementById('sheet-title').innerText = "Relatório de Chamada Atual (Informa)";
             const sorted = [...dataToRender].sort((a, b) => a.name.localeCompare(b.name));
             sorted.forEach(s => {
                 tbody.innerHTML += `
@@ -714,9 +730,8 @@
         };
 
         window.showSection = (id) => {
-            // Verificação extra de segurança no JS
             if (id === 'users' && loggedUserName !== "CLX") {
-                alert("Acesso negado. Apenas o administrador CLX pode gerenciar logins.");
+                alert("Acesso negado. Apenas o administrador principal pode gerenciar logins.");
                 return;
             }
             document.getElementById('section-attendance').style.display = id === 'attendance' ? 'block' : 'none';
@@ -730,7 +745,6 @@
             tbody.innerHTML = "";
             usersList.forEach(u => {
                 const tr = document.createElement('tr');
-                // Não deixa apagar o próprio admin principal por segurança
                 const isMainAdmin = u.login === "CLX";
                 tr.innerHTML = `
                     <td style="color: white">${u.login} ${isMainAdmin ? '(Admin Principal)' : ''}</td>
@@ -743,9 +757,7 @@
         }
 
         window.addNewUser = async () => {
-            // Proteção tripla: só CLX pode chamar essa função
             if (loggedUserName !== "CLX") return;
-
             const l = document.getElementById('new-user-login').value.trim();
             const p = document.getElementById('new-user-pass').value.trim();
             if(l && p) {
