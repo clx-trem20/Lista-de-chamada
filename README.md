@@ -2,7 +2,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Chamada Profissional - Informa</title>
+    <title>Sistema de Chamada Profissional - CLX</title>
     <!-- Biblioteca para exportar Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <style>
@@ -293,7 +293,7 @@
 
     <div id="lock-screen">
         <div class="login-card">
-            <h2>Chamada Informa</h2><br>
+            <h2>Chamada CLX</h2><br>
             <input type="text" id="user-input" class="input-field" placeholder="Usuário">
             <input type="password" id="pass-input" class="input-field" placeholder="Senha">
             <button class="btn-login" onclick="validateAccess()">DESBLOQUEAR</button>
@@ -303,7 +303,7 @@
 
     <main id="app-content">
         <header class="header">
-            <h1 id="welcome-title">Chamada Informa</h1>
+            <h1 id="welcome-title">Chamada CLX</h1>
             <div class="nav-buttons">
                 <button class="btn-action" onclick="showSection('attendance')">📋 Chamada</button>
                 <button class="btn-action" onclick="showSection('history')">📅 Histórico</button>
@@ -340,7 +340,7 @@
             </div>
 
             <div class="search-container">
-                <input type="text" id="search-input" class="search-input" placeholder="🔍 Pesquisar nome do aluno..." oninput="renderStudents()">
+                <input type="text" id="search-input" class="search-input" placeholder="🔍 Pesquisar nome do aluno (Bússola)..." oninput="renderStudents()">
             </div>
 
             <div style="margin-bottom: 10px; display: flex; align-items: center;">
@@ -375,11 +375,11 @@
             </div>
         </div>
 
-        <!-- SEÇÃO ACESSOS -->
+        <!-- SEÇÃO ACESSOS (SÓ ADMIN CLX) -->
         <div id="section-users" style="display:none">
             <div class="section-container">
                 <div style="display:flex; justify-content: space-between; align-items:center">
-                    <h3>Gerenciar Acessos (Restrito ao Admin)</h3>
+                    <h3>Gerenciar Acessos (Restrito ao Admin CLX)</h3>
                 </div><br>
                 <div class="input-group">
                     <input type="text" id="new-user-login" placeholder="Login">
@@ -442,14 +442,10 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        
-        // CORREÇÃO CRÍTICA: Voltando para o ID original para recuperar os dados
-        // Se o seu ID anterior era 'default-app-id' ou algum outro, vou usar o padrão do ambiente
-        // para garantir que aponte para onde os dados estavam sendo salvos antes da minha alteração.
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'chamada-clx-v1';
 
         let currentUser = null;
-        let loggedUserName = ""; 
+        let loggedUserName = ""; // Armazena o login usado
         let studentsList = [];
         let usersList = [];
         let historyList = [];
@@ -505,8 +501,9 @@
                 loggedUserName = found.login;
                 document.getElementById('lock-screen').classList.add('hidden');
                 document.getElementById('app-content').style.display = 'block';
-                document.getElementById('welcome-title').innerText = `Informa - Olá, ${loggedUserName}`;
+                document.getElementById('welcome-title').innerText = `CLX - Olá, ${loggedUserName}`;
                 
+                // --- REGRA DE OURO: Só CLX vê o botão de Acessos ---
                 if (loggedUserName === "CLX") {
                     document.getElementById('nav-btn-users').style.display = 'inline-block';
                 } else {
@@ -541,6 +538,7 @@
             await updateDoc(docRef, { present: !current });
         };
 
+        // --- FUNÇÃO NOVA: FALTA GERAL ---
         window.absentAllStudents = async () => {
             if (studentsList.length === 0) return;
             if (!confirm("Isso marcará FALTA para todos os alunos da lista. Continuar?")) return;
@@ -575,7 +573,7 @@
             };
             const col = collection(db, 'artifacts', appId, 'public', 'data', 'history');
             await addDoc(col, historyEntry);
-            alert(`Chamada de ${dateStr} salva com sucesso no Histórico Informa!`);
+            alert(`Chamada de ${dateStr} salva com sucesso no Histórico!`);
         };
 
         window.downloadBackup = () => {
@@ -585,7 +583,7 @@
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = url;
-            link.download = `backup_alunos_informa_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`;
+            link.download = `backup_alunos_clx_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`;
             link.click();
         };
 
@@ -597,7 +595,7 @@
                 try {
                     const data = JSON.parse(e.target.result);
                     if (!Array.isArray(data)) throw new Error();
-                    if (confirm(`Deseja importar ${data.length} alunos para o sistema Informa?`)) {
+                    if (confirm(`Deseja importar ${data.length} alunos?`)) {
                         const col = collection(db, 'artifacts', appId, 'public', 'data', 'students');
                         for (let item of data) {
                             if (item.name) await addDoc(col, { name: item.name, present: item.present ?? true, createdAt: Date.now() });
@@ -624,7 +622,7 @@
                 let sheetName = `${entry.date.replace(/\//g, '-')}`;
                 XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
             });
-            XLSX.writeFile(workbook, `Historico_Completo_Chamada_Informa.xlsx`);
+            XLSX.writeFile(workbook, `Historico_Completo_Chamada_CLX.xlsx`);
         };
 
         window.exportToExcel = () => {
@@ -641,7 +639,7 @@
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Chamada");
             const dateLabel = currentViewingData ? currentViewingData.date.replace(/\//g, '-') : 'Atual';
-            XLSX.writeFile(workbook, `Chamada_Informa_${dateLabel}.xlsx`);
+            XLSX.writeFile(workbook, `Chamada_CLX_${dateLabel}.xlsx`);
         };
 
         window.renderStudents = () => {
@@ -677,7 +675,7 @@
             container.innerHTML = "";
             const sortedHistory = [...historyList].sort((a, b) => b.timestamp - a.timestamp);
             if (sortedHistory.length === 0) {
-                container.innerHTML = "<p style='color:var(--text-dim)'>Nenhum registro encontrado no sistema Informa.</p>";
+                container.innerHTML = "<p style='color:var(--text-dim)'>Nenhum registro encontrado.</p>";
                 return;
             }
             sortedHistory.forEach(entry => {
@@ -700,12 +698,12 @@
 
         window.openHistoryEntry = (entry) => {
             currentViewingData = entry;
-            document.getElementById('sheet-title').innerText = `Relatório Informa: ${entry.date} (${entry.time})`;
+            document.getElementById('sheet-title').innerText = `Relatório de ${entry.date} (${entry.time})`;
             toggleSheet(true);
         };
 
         window.deleteHistory = async (id) => {
-            if (confirm("Deseja apagar este registro do histórico Informa?")) {
+            if (confirm("Deseja apagar este registro de histórico?")) {
                 await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'history', id));
             }
         };
@@ -714,7 +712,7 @@
             const tbody = document.getElementById('sheet-table-body');
             tbody.innerHTML = "";
             const dataToRender = currentViewingData ? currentViewingData.data : studentsList;
-            if (!currentViewingData) document.getElementById('sheet-title').innerText = "Relatório de Chamada Atual (Informa)";
+            if (!currentViewingData) document.getElementById('sheet-title').innerText = "Relatório de Chamada (Atual)";
             const sorted = [...dataToRender].sort((a, b) => a.name.localeCompare(b.name));
             sorted.forEach(s => {
                 tbody.innerHTML += `
@@ -733,7 +731,7 @@
 
         window.showSection = (id) => {
             if (id === 'users' && loggedUserName !== "CLX") {
-                alert("Acesso negado. Apenas o administrador principal pode gerenciar logins.");
+                alert("Acesso negado. Apenas o administrador CLX pode gerenciar logins.");
                 return;
             }
             document.getElementById('section-attendance').style.display = id === 'attendance' ? 'block' : 'none';
