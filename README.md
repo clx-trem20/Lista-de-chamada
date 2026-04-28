@@ -1,8 +1,9 @@
+<!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Chamada Profissional - Informa</title>
+    <title>Sistema de Chamada Profissional - CLX</title>
     <!-- Biblioteca para exportar Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <style>
@@ -289,7 +290,7 @@
 </head>
 <body>
 
-    <div id="loading-overlay">Carregando Banco de Dados...</div>
+    <div id="loading-overlay">A carregar o Banco de Dados...</div>
 
     <div id="lock-screen">
         <div class="login-card">
@@ -323,7 +324,7 @@
         <div id="section-attendance">
             <div class="section-container">
                 <div style="display:flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-                    <h3>Gerenciar Alunos</h3>
+                    <h3>Gerir Alunos</h3>
                     <div style="display:flex; gap:10px">
                         <button class="btn-save" style="background: var(--accent-red);" onclick="absentAllStudents()">🚫 DAR FALTA GERAL</button>
                         <button class="btn-save" style="background: var(--accent-purple);" onclick="saveDailyCall()">💾 SALVAR CHAMADA DO DIA</button>
@@ -340,7 +341,7 @@
             </div>
 
             <div class="search-container">
-                <input type="text" id="search-input" class="search-input" placeholder="🔍 Pesquisar nome do aluno (Bússola)..." oninput="renderStudents()">
+                <input type="text" id="search-input" class="search-input" placeholder="🔍 Pesquisar nome do aluno..." oninput="renderStudents()">
             </div>
 
             <div style="margin-bottom: 10px; display: flex; align-items: center;">
@@ -379,7 +380,7 @@
         <div id="section-users" style="display:none">
             <div class="section-container">
                 <div style="display:flex; justify-content: space-between; align-items:center">
-                    <h3>Gerenciar Acessos (Restrito ao Admin CLX)</h3>
+                    <h3>Gerir Acessos (Restrito ao Admin CLX)</h3>
                 </div><br>
                 <div class="input-group">
                     <input type="text" id="new-user-login" placeholder="Login">
@@ -442,10 +443,12 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        
+        // REVERSÃO DO APP ID: Usando o ID original 'chamada-clx-v1' para recuperar os dados
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'chamada-clx-v1';
 
         let currentUser = null;
-        let loggedUserName = ""; // Armazena o login usado
+        let loggedUserName = ""; 
         let studentsList = [];
         let usersList = [];
         let historyList = [];
@@ -463,7 +466,7 @@
                 });
             } catch (err) {
                 console.error(err);
-                alert("Erro ao conectar com o servidor.");
+                alert("Erro ao ligar ao servidor.");
             }
         }
 
@@ -474,7 +477,7 @@
             onSnapshot(studentsCol, (snap) => {
                 studentsList = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderStudents();
-            });
+            }, (err) => console.error("Erro Students:", err));
 
             const usersCol = collection(db, 'artifacts', appId, 'public', 'data', 'users');
             onSnapshot(usersCol, (snap) => {
@@ -483,13 +486,13 @@
                     addDoc(usersCol, { login: "CLX", pass: "02072007" });
                 }
                 renderUsers();
-            });
+            }, (err) => console.error("Erro Users:", err));
 
             const historyCol = collection(db, 'artifacts', appId, 'public', 'data', 'history');
             onSnapshot(historyCol, (snap) => {
                 historyList = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderHistory();
-            });
+            }, (err) => console.error("Erro History:", err));
         }
 
         window.validateAccess = () => {
@@ -503,7 +506,6 @@
                 document.getElementById('app-content').style.display = 'block';
                 document.getElementById('welcome-title').innerText = `CLX - Olá, ${loggedUserName}`;
                 
-                // --- REGRA DE OURO: Só CLX vê o botão de Acessos ---
                 if (loggedUserName === "CLX") {
                     document.getElementById('nav-btn-users').style.display = 'inline-block';
                 } else {
@@ -538,7 +540,6 @@
             await updateDoc(docRef, { present: !current });
         };
 
-        // --- FUNÇÃO NOVA: FALTA GERAL ---
         window.absentAllStudents = async () => {
             if (studentsList.length === 0) return;
             if (!confirm("Isso marcará FALTA para todos os alunos da lista. Continuar?")) return;
@@ -601,7 +602,7 @@
                             if (item.name) await addDoc(col, { name: item.name, present: item.present ?? true, createdAt: Date.now() });
                         }
                     }
-                } catch (err) { alert("Erro ao ler arquivo."); }
+                } catch (err) { alert("Erro ao ler ficheiro."); }
             };
             reader.readAsText(file);
             event.target.value = "";
@@ -675,7 +676,7 @@
             container.innerHTML = "";
             const sortedHistory = [...historyList].sort((a, b) => b.timestamp - a.timestamp);
             if (sortedHistory.length === 0) {
-                container.innerHTML = "<p style='color:var(--text-dim)'>Nenhum registro encontrado.</p>";
+                container.innerHTML = "<p style='color:var(--text-dim)'>Nenhum registo encontrado.</p>";
                 return;
             }
             sortedHistory.forEach(entry => {
@@ -703,7 +704,7 @@
         };
 
         window.deleteHistory = async (id) => {
-            if (confirm("Deseja apagar este registro de histórico?")) {
+            if (confirm("Deseja apagar este registo de histórico?")) {
                 await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'history', id));
             }
         };
@@ -731,7 +732,7 @@
 
         window.showSection = (id) => {
             if (id === 'users' && loggedUserName !== "CLX") {
-                alert("Acesso negado. Apenas o administrador CLX pode gerenciar logins.");
+                alert("Acesso negado. Apenas o administrador CLX pode gerir logins.");
                 return;
             }
             document.getElementById('section-attendance').style.display = id === 'attendance' ? 'block' : 'none';
