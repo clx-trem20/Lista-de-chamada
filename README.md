@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
@@ -611,7 +610,12 @@
         window.exportFullHistoryToExcel = () => {
             if (historyList.length === 0) return alert("Não há histórico para exportar.");
             const workbook = XLSX.utils.book_new();
+            // Ordena do mais antigo para o mais novo para as abas seguirem ordem cronológica
             const sortedHistory = [...historyList].sort((a, b) => a.timestamp - b.timestamp);
+            
+            // Controle de nomes duplicados de abas (o Excel não permite abas com o mesmo nome)
+            const usedSheetNames = {};
+
             sortedHistory.forEach(entry => {
                 const formattedData = entry.data
                     .sort((a, b) => a.name.localeCompare(b.name))
@@ -619,10 +623,25 @@
                         "Nome do Aluno": s.name,
                         "Situação": s.present ? "PRESENÇA" : "FALTA"
                     }));
+                
                 const worksheet = XLSX.utils.json_to_sheet(formattedData);
-                let sheetName = `${entry.date.replace(/\//g, '-')}`;
+                
+                // Define o nome da aba como a data (limpando caracteres inválidos se houver)
+                let baseName = entry.date.replace(/\//g, '-');
+                let sheetName = baseName;
+                
+                // Se houver mais de uma chamada no mesmo dia, adiciona o horário ou um contador
+                if (usedSheetNames[sheetName]) {
+                    sheetName = `${baseName} (${entry.time.replace(/:/g, 'h')})`;
+                }
+                
+                // Limite de 31 caracteres para nome de aba no Excel
+                if (sheetName.length > 31) sheetName = sheetName.substring(0, 31);
+                
+                usedSheetNames[sheetName] = true;
                 XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
             });
+            
             XLSX.writeFile(workbook, `Historico_Completo_Chamada_CLX.xlsx`);
         };
 
