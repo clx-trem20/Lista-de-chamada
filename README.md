@@ -13,6 +13,7 @@
             --accent-blue: #38bdf8;
             --accent-green: #22c55e;
             --accent-red: #ef4444;
+            --accent-orange: #f59e0b;
             --accent-purple: #a855f7;
             --text-main: #f8fafc;
             --text-dim: #94a3b8;
@@ -209,9 +210,26 @@
             font-weight: 500;
         }
 
-        .badge { padding: 6px 12px; border-radius: 20px; cursor: pointer; border: none; font-weight: 600; }
+        .badge-group {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+        }
+
+        .badge { padding: 6px 10px; border-radius: 8px; cursor: pointer; border: none; font-weight: 600; font-size: 0.75rem; opacity: 0.4; transition: 0.2s; }
+        .badge.active { opacity: 1; transform: scale(1.05); }
         .badge-present { background: #22c55e; color: white; }
         .badge-absent { background: #ef4444; color: white; }
+        .badge-justified { background: var(--accent-orange); color: white; }
+
+        .justification-input {
+            width: 100%;
+            margin-top: 5px;
+            padding: 5px;
+            font-size: 0.8rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
 
         .btn-delete { color: #b91c1c; background: #fee2e2; border: 1px solid #f87171; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
 
@@ -243,6 +261,12 @@
         .history-card:hover {
             transform: scale(1.01);
             background: #475569;
+        }
+
+        .history-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
         }
 
         /* --- PLANILHA OVERLAY --- */
@@ -282,6 +306,25 @@
             font-weight: bold;
         }
 
+        /* MODAL GENÉRICO */
+        .modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 4000;
+        }
+        .modal-content {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            color: white;
+        }
+
         @media print {
             #sheet-overlay { position: static; background: white; padding: 0; }
             .btn-action, button, .search-container, .nav-buttons { display: none; }
@@ -291,6 +334,21 @@
 <body>
 
     <div id="loading-overlay">A carregar o Banco de Dados...</div>
+
+    <!-- MODAL EDITAR DATA -->
+    <div id="modal-edit-date" class="modal">
+        <div class="modal-content">
+            <h3>Editar Data/Hora</h3><br>
+            <label>Data:</label>
+            <input type="date" id="edit-history-date" class="input-field">
+            <label>Hora:</label>
+            <input type="time" id="edit-history-time" class="input-field">
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button class="btn-save" onclick="saveEditedDate()" style="flex:1">Salvar</button>
+                <button class="btn-action" onclick="closeEditModal()" style="flex:1">Cancelar</button>
+            </div>
+        </div>
+    </div>
 
     <div id="lock-screen">
         <div class="login-card">
@@ -313,7 +371,6 @@
                 <button class="btn-action" onclick="document.getElementById('import-file').click()">📤 Carregar JSON</button>
                 <input type="file" id="import-file" style="display:none;" accept=".json" onchange="importBackup(event)">
                 
-                <!-- Botão de acesso controlado por JS -->
                 <button id="nav-btn-users" class="btn-action" style="display:none" onclick="showSection('users')">🔑 Acessos (Admin)</button>
                 
                 <button class="btn-action" style="color:var(--accent-red)" onclick="location.reload()">Sair</button>
@@ -418,6 +475,7 @@
                     <tr>
                         <th>Nome do Aluno</th>
                         <th>Situação</th>
+                        <th>Observação</th>
                     </tr>
                 </thead>
                 <tbody id="sheet-table-body"></tbody>
@@ -443,9 +501,7 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        
-        // REVERSÃO DO APP ID: Usando o ID original 'chamada-clx-v1' para recuperar os dados
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'chamada-clx-v1';
+        const appId = 'chamada-clx-v1';
 
         let currentUser = null;
         let loggedUserName = ""; 
@@ -453,6 +509,7 @@
         let usersList = [];
         let historyList = [];
         let currentViewingData = null; 
+        let currentHistoryIdToEdit = null;
 
         async function init() {
             try {
@@ -508,8 +565,6 @@
                 
                 if (loggedUserName === "CLX") {
                     document.getElementById('nav-btn-users').style.display = 'inline-block';
-                } else {
-                    document.getElementById('nav-btn-users').style.display = 'none';
                 }
             } else {
                 document.getElementById('login-error').style.display = 'block';
@@ -520,7 +575,7 @@
             const name = document.getElementById('new-student-name').value.trim();
             if (!name) return;
             const col = collection(db, 'artifacts', appId, 'public', 'data', 'students');
-            await addDoc(col, { name, present: true, createdAt: Date.now() });
+            await addDoc(col, { name, status: 'present', justification: '', createdAt: Date.now() });
             document.getElementById('new-student-name').value = "";
         };
 
@@ -530,26 +585,29 @@
             const names = text.split('\n');
             const col = collection(db, 'artifacts', appId, 'public', 'data', 'students');
             for (let n of names) {
-                if (n.trim()) await addDoc(col, { name: n.trim(), present: true, createdAt: Date.now() });
+                if (n.trim()) await addDoc(col, { name: n.trim(), status: 'present', justification: '', createdAt: Date.now() });
             }
             document.getElementById('bulk-names').value = "";
         };
 
-        window.togglePresence = async (id, current) => {
+        window.updateStudentStatus = async (id, status) => {
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', id);
-            await updateDoc(docRef, { present: !current });
+            await updateDoc(docRef, { status: status });
+        };
+
+        window.updateJustification = async (id, val) => {
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', id);
+            await updateDoc(docRef, { justification: val });
         };
 
         window.absentAllStudents = async () => {
             if (studentsList.length === 0) return;
             if (!confirm("Isso marcará FALTA para todos os alunos da lista. Continuar?")) return;
-            
             const batch = writeBatch(db);
             studentsList.forEach(student => {
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', student.id);
-                batch.update(docRef, { present: false });
+                batch.update(docRef, { status: 'absent' });
             });
-            
             await batch.commit();
         };
 
@@ -570,97 +628,11 @@
                 date: dateStr,
                 time: timeStr,
                 timestamp: Date.now(),
-                data: studentsList.map(s => ({ name: s.name, present: s.present }))
+                data: studentsList.map(s => ({ name: s.name, status: s.status || (s.present ? 'present' : 'absent'), justification: s.justification || '' }))
             };
             const col = collection(db, 'artifacts', appId, 'public', 'data', 'history');
             await addDoc(col, historyEntry);
             alert(`Chamada de ${dateStr} salva com sucesso no Histórico!`);
-        };
-
-        window.downloadBackup = () => {
-            if (studentsList.length === 0) return alert("Não há alunos para exportar.");
-            const exportData = studentsList.map(s => ({ name: s.name, present: s.present }));
-            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = `backup_alunos_clx_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`;
-            link.click();
-        };
-
-        window.importBackup = async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    if (!Array.isArray(data)) throw new Error();
-                    if (confirm(`Deseja importar ${data.length} alunos?`)) {
-                        const col = collection(db, 'artifacts', appId, 'public', 'data', 'students');
-                        for (let item of data) {
-                            if (item.name) await addDoc(col, { name: item.name, present: item.present ?? true, createdAt: Date.now() });
-                        }
-                    }
-                } catch (err) { alert("Erro ao ler ficheiro."); }
-            };
-            reader.readAsText(file);
-            event.target.value = "";
-        };
-
-        window.exportFullHistoryToExcel = () => {
-            if (historyList.length === 0) return alert("Não há histórico para exportar.");
-            const workbook = XLSX.utils.book_new();
-            // Ordena do mais antigo para o mais novo para as abas seguirem ordem cronológica
-            const sortedHistory = [...historyList].sort((a, b) => a.timestamp - b.timestamp);
-            
-            // Controle de nomes duplicados de abas (o Excel não permite abas com o mesmo nome)
-            const usedSheetNames = {};
-
-            sortedHistory.forEach(entry => {
-                const formattedData = entry.data
-                    .sort((a, b) => a.name.localeCompare(b.name))
-                    .map(s => ({
-                        "Nome do Aluno": s.name,
-                        "Situação": s.present ? "PRESENÇA" : "FALTA"
-                    }));
-                
-                const worksheet = XLSX.utils.json_to_sheet(formattedData);
-                
-                // Define o nome da aba como a data (limpando caracteres inválidos se houver)
-                let baseName = entry.date.replace(/\//g, '-');
-                let sheetName = baseName;
-                
-                // Se houver mais de uma chamada no mesmo dia, adiciona o horário ou um contador
-                if (usedSheetNames[sheetName]) {
-                    sheetName = `${baseName} (${entry.time.replace(/:/g, 'h')})`;
-                }
-                
-                // Limite de 31 caracteres para nome de aba no Excel
-                if (sheetName.length > 31) sheetName = sheetName.substring(0, 31);
-                
-                usedSheetNames[sheetName] = true;
-                XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-            });
-            
-            XLSX.writeFile(workbook, `Historico_Completo_Chamada_CLX.xlsx`);
-        };
-
-        window.exportToExcel = () => {
-            const dataToExport = currentViewingData || studentsList;
-            if (dataToExport.length === 0) return alert("Não há dados para exportar.");
-            const list = Array.isArray(dataToExport) ? dataToExport : dataToExport.data;
-            const formatted = list
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map(s => ({
-                    "Nome do Aluno": s.name,
-                    "Situação": s.present ? "PRESENÇA" : "FALTA"
-                }));
-            const worksheet = XLSX.utils.json_to_sheet(formatted);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Chamada");
-            const dateLabel = currentViewingData ? currentViewingData.date.replace(/\//g, '-') : 'Atual';
-            XLSX.writeFile(workbook, `Chamada_CLX_${dateLabel}.xlsx`);
         };
 
         window.renderStudents = () => {
@@ -672,19 +644,27 @@
             const sorted = [...studentsList].sort((a, b) => a.name.localeCompare(b.name));
             const filtered = sorted.filter(s => s.name.toLowerCase().includes(searchTerm));
             
-            counterSpan.innerText = `${filtered.length} ${filtered.length === 1 ? 'Aluno' : 'Alunos'}`;
+            counterSpan.innerText = `${filtered.length} Alunos`;
 
             filtered.forEach(s => {
+                const status = s.status || (s.present ? 'present' : 'absent');
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td style="color: #000000 !important;">${s.name}</td>
+                    <td style="color: #000000 !important;">
+                        ${s.name}
+                        ${status === 'justified' ? `
+                            <br><input type="text" class="justification-input" placeholder="Justificativa..." value="${s.justification || ''}" onchange="updateJustification('${s.id}', this.value)">
+                        ` : ''}
+                    </td>
                     <td style="text-align:center">
-                        <button class="badge ${s.present ? 'badge-present' : 'badge-absent'}" onclick="togglePresence('${s.id}', ${s.present})">
-                            ${s.present ? 'PRESENÇA' : 'FALTA'}
-                        </button>
+                        <div class="badge-group">
+                            <button class="badge badge-present ${status === 'present' ? 'active' : ''}" onclick="updateStudentStatus('${s.id}', 'present')">P</button>
+                            <button class="badge badge-absent ${status === 'absent' ? 'active' : ''}" onclick="updateStudentStatus('${s.id}', 'absent')">F</button>
+                            <button class="badge badge-justified ${status === 'justified' ? 'active' : ''}" onclick="updateStudentStatus('${s.id}', 'justified')">J</button>
+                        </div>
                     </td>
                     <td style="text-align:right">
-                        <button class="btn-delete" onclick="removeStudent('${s.id}')">Apagar</button>
+                        <button class="btn-delete" onclick="removeStudent('${s.id}')">X</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -708,13 +688,44 @@
                         <strong style="color:white; font-size: 1.1rem">${entry.date}</strong><br>
                         <span style="color:var(--text-dim); font-size: 0.8rem">Salvo às ${entry.time}</span>
                     </div>
-                    <div style="text-align:right">
-                        <span style="color:var(--accent-blue)">${entry.data.length} Alunos</span><br>
-                        <button class="btn-delete" style="margin-top:5px; padding: 2px 8px; font-size: 0.7rem" onclick="event.stopPropagation(); deleteHistory('${entry.id}')">Excluir</button>
+                    <div class="history-actions">
+                        <button class="btn-action" style="padding: 2px 8px; font-size: 0.7rem; background:#475569" onclick="event.stopPropagation(); openEditModal('${entry.id}', '${entry.date}', '${entry.time}')">Editar Data</button>
+                        <button class="btn-delete" style="padding: 2px 8px; font-size: 0.7rem" onclick="event.stopPropagation(); deleteHistory('${entry.id}')">Excluir</button>
                     </div>
                 `;
                 container.appendChild(div);
             });
+        };
+
+        window.openEditModal = (id, dateStr, timeStr) => {
+            currentHistoryIdToEdit = id;
+            const parts = dateStr.split('/');
+            const isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            document.getElementById('edit-history-date').value = isoDate;
+            document.getElementById('edit-history-time').value = timeStr;
+            document.getElementById('modal-edit-date').style.display = 'flex';
+        };
+
+        window.closeEditModal = () => {
+            document.getElementById('modal-edit-date').style.display = 'none';
+        };
+
+        window.saveEditedDate = async () => {
+            const newDateIso = document.getElementById('edit-history-date').value;
+            const newTime = document.getElementById('edit-history-time').value;
+            if(!newDateIso || !newTime) return;
+
+            const parts = newDateIso.split('-');
+            const newDateFormatted = `${parts[2]}/${parts[1]}/${parts[0]}`;
+
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'history', currentHistoryIdToEdit);
+            await updateDoc(docRef, {
+                date: newDateFormatted,
+                time: newTime,
+                timestamp: new Date(`${newDateIso}T${newTime}`).getTime()
+            });
+
+            closeEditModal();
         };
 
         window.openHistoryEntry = (entry) => {
@@ -732,14 +743,21 @@
         window.renderSheet = () => {
             const tbody = document.getElementById('sheet-table-body');
             tbody.innerHTML = "";
-            const dataToRender = currentViewingData ? currentViewingData.data : studentsList;
+            const dataToRender = currentViewingData ? currentViewingData.data : studentsList.map(s => ({ name: s.name, status: s.status || (s.present ? 'present' : 'absent'), justification: s.justification || '' }));
             if (!currentViewingData) document.getElementById('sheet-title').innerText = "Relatório de Chamada (Atual)";
+            
             const sorted = [...dataToRender].sort((a, b) => a.name.localeCompare(b.name));
             sorted.forEach(s => {
+                let statusText = "FALTA";
+                let color = "red";
+                if(s.status === 'present' || s.present === true) { statusText = "PRESENÇA"; color = "green"; }
+                else if(s.status === 'justified') { statusText = "JUSTIFICADA"; color = "orange"; }
+
                 tbody.innerHTML += `
                     <tr>
                         <td style="color: black !important;">${s.name}</td>
-                        <td style="color: ${s.present ? 'green' : 'red'}; font-weight: bold">${s.present ? 'PRESENÇA' : 'FALTA'}</td>
+                        <td style="color: ${color}; font-weight: bold">${statusText}</td>
+                        <td style="color: #666; font-size: 0.8rem">${s.justification || '-'}</td>
                     </tr>`;
             });
         };
@@ -750,11 +768,78 @@
             else currentViewingData = null;
         };
 
+        window.exportFullHistoryToExcel = () => {
+            if (historyList.length === 0) return alert("Não há histórico para exportar.");
+            const workbook = XLSX.utils.book_new();
+            const sortedHistory = [...historyList].sort((a, b) => a.timestamp - b.timestamp);
+            const usedNames = {};
+
+            sortedHistory.forEach(entry => {
+                const formattedData = entry.data
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(s => {
+                        let situ = "FALTA";
+                        if(s.status === 'present') situ = "PRESENÇA";
+                        if(s.status === 'justified') situ = "JUSTIFICADA";
+                        return {
+                            "Nome do Aluno": s.name,
+                            "Situação": situ,
+                            "Justificativa": s.justification || ""
+                        };
+                    });
+                
+                const worksheet = XLSX.utils.json_to_sheet(formattedData);
+                let baseName = entry.date.replace(/\//g, '-');
+                let sheetName = baseName;
+                if (usedNames[sheetName]) sheetName = `${baseName} (${entry.time.replace(/:/g, 'h')})`;
+                usedNames[sheetName] = true;
+                XLSX.utils.book_append_sheet(workbook, worksheet, sheetName.substring(0, 31));
+            });
+            XLSX.writeFile(workbook, `Historico_Completo_Chamada_CLX.xlsx`);
+        };
+
+        window.exportToExcel = () => {
+            const dataToExport = currentViewingData ? currentViewingData.data : studentsList.map(s => ({ name: s.name, status: s.status, justification: s.justification }));
+            const formatted = dataToExport
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map(s => ({
+                    "Nome do Aluno": s.name,
+                    "Situação": s.status === 'present' ? "PRESENÇA" : (s.status === 'justified' ? "JUSTIFICADA" : "FALTA"),
+                    "Justificativa": s.justification || ""
+                }));
+            const worksheet = XLSX.utils.json_to_sheet(formatted);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Chamada");
+            XLSX.writeFile(workbook, `Chamada_CLX.xlsx`);
+        };
+
+        window.downloadBackup = () => {
+            const blob = new Blob([JSON.stringify(studentsList, null, 2)], { type: "application/json" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `backup_clx.json`;
+            link.click();
+        };
+
+        window.importBackup = async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (confirm(`Importar ${data.length} alunos?`)) {
+                        const col = collection(db, 'artifacts', appId, 'public', 'data', 'students');
+                        for (let item of data) {
+                            await addDoc(col, { name: item.name, status: item.status || 'present', justification: item.justification || '', createdAt: Date.now() });
+                        }
+                    }
+                } catch (err) { alert("Erro ao importar."); }
+            };
+            reader.readAsText(file);
+        };
+
         window.showSection = (id) => {
-            if (id === 'users' && loggedUserName !== "CLX") {
-                alert("Acesso negado. Apenas o administrador CLX pode gerir logins.");
-                return;
-            }
             document.getElementById('section-attendance').style.display = id === 'attendance' ? 'block' : 'none';
             document.getElementById('section-history').style.display = id === 'history' ? 'block' : 'none';
             document.getElementById('section-users').style.display = id === 'users' ? 'block' : 'none';
@@ -766,35 +851,19 @@
             tbody.innerHTML = "";
             usersList.forEach(u => {
                 const tr = document.createElement('tr');
-                const isMainAdmin = u.login === "CLX";
-                tr.innerHTML = `
-                    <td style="color: white">${u.login} ${isMainAdmin ? '(Admin Principal)' : ''}</td>
-                    <td style="text-align:right">
-                        ${!isMainAdmin ? `<button class="btn-delete" onclick="removeUser('${u.id}')">Remover</button>` : ''}
-                    </td>
-                `;
+                tr.innerHTML = `<td style="color:white">${u.login}</td><td style="text-align:right">${u.login !== 'CLX' ? `<button class="btn-delete" onclick="removeUser('${u.id}')">X</button>` : ''}</td>`;
                 tbody.appendChild(tr);
             });
         }
 
         window.addNewUser = async () => {
-            if (loggedUserName !== "CLX") return;
             const l = document.getElementById('new-user-login').value.trim();
             const p = document.getElementById('new-user-pass').value.trim();
-            if(l && p) {
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'users'), { login: l, pass: p });
-                alert("Novo acesso criado com sucesso!");
-            }
-            document.getElementById('new-user-login').value = ""; 
-            document.getElementById('new-user-pass').value = "";
+            if(l && p) await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'users'), { login: l, pass: p });
+            document.getElementById('new-user-login').value = ""; document.getElementById('new-user-pass').value = "";
         };
 
-        window.removeUser = async (id) => { 
-            if (loggedUserName !== "CLX") return;
-            if(usersList.length > 1 && confirm("Remover este usuário?")) {
-                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', id));
-            }
-        };
+        window.removeUser = async (id) => { if(confirm("Remover usuário?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', id)); };
 
         init();
     </script>
