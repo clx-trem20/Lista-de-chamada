@@ -461,10 +461,12 @@
     <!-- OVERLAY PLANILHA / VISUALIZADOR -->
     <div id="sheet-overlay">
         <div class="sheet-content">
-            <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 20px;">
+            <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
                 <h2 id="sheet-title" style="color:black">Relatório de Chamada</h2>
-                <div>
+                <div style="display:flex; gap: 8px; flex-wrap: wrap;">
                     <button class="btn-action" style="background:#000; color:#fff" onclick="toggleSheet(false)">Fechar</button>
+                    <!-- Novo botão para salvar edições feitas no histórico -->
+                    <button id="btn-save-history-edit" class="btn-action" style="background:var(--accent-purple); color:#fff; display:none;" onclick="saveHistoryChanges()">💾 Salvar Alterações</button>
                     <button class="btn-action" style="background:#1e40af; color:#fff" onclick="exportToExcel()">📥 Baixar Excel</button>
                     <button class="btn-action" style="background:#10b981; color:#fff" onclick="window.print()">Imprimir PDF</button>
                 </div>
@@ -739,25 +741,100 @@
             }
         };
 
+        // Altera o estado do aluno localmente no objeto de visualização do histórico
+        window.updateHistoryStudentStatus = (studentName, newStatus) => {
+            if (!currentViewingData || !currentViewingData.data) return;
+            const student = currentViewingData.data.find(s => s.name === studentName);
+            if (student) {
+                student.status = newStatus;
+                if (newStatus !== 'justified') {
+                    student.justification = "";
+                }
+                renderSheet();
+            }
+        };
+
+        // Altera a justificativa localmente no objeto de visualização do histórico
+        window.updateHistoryStudentJustification = (studentName, value) => {
+            if (!currentViewingData || !currentViewingData.data) return;
+            const student = currentViewingData.data.find(s => s.name === studentName);
+            if (student) {
+                student.justification = value;
+            }
+        };
+
+        // Salva as alterações feitas na chamada do histórico de volta ao Firestore
+        window.saveHistoryChanges = async () => {
+            if (!currentViewingData || !currentViewingData.id) return;
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'history', currentViewingData.id);
+                await updateDoc(docRef, {
+                    data: currentViewingData.data
+                });
+                alert("Alterações na chamada salvas com sucesso!");
+                renderHistory();
+            } catch (err) {
+                console.error("Erro ao salvar edições do histórico:", err);
+                alert("Erro ao salvar as edições da chamada.");
+            }
+        };
+
         window.renderSheet = () => {
             const tbody = document.getElementById('sheet-table-body');
             tbody.innerHTML = "";
-            const dataToRender = currentViewingData ? currentViewingData.data : studentsList.map(s => ({ name: s.name, status: s.status || (s.present ? 'present' : 'absent'), justification: s.justification || '' }));
-            if (!currentViewingData) document.getElementById('sheet-title').innerText = "Relatório de Chamada (Atual)";
+            const isHistory = !!currentViewingData;
+            const dataToRender = isHistory ? currentViewingData.data : studentsList.map(s => ({ name: s.name, status: s.status || (s.present ? 'present' : 'absent'), justification: s.justification || '' }));
+            
+            // Gerencia a exibição do botão de salvar alterações
+            const saveBtn = document.getElementById('btn-save-history-edit');
+            if (isHistory) {
+                saveBtn.style.display = 'inline-block';
+                document.getElementById('sheet-title').innerText = `Editar Chamada - ${currentViewingData.date} (${currentViewingData.time})`;
+            } else {
+                saveBtn.style.display = 'none';
+                document.getElementById('sheet-title').innerText = "Relatório de Chamada (Atual)";
+            }
             
             const sorted = [...dataToRender].sort((a, b) => a.name.localeCompare(b.name));
             sorted.forEach(s => {
-                let statusText = "FALTA";
-                let color = "red";
-                if(s.status === 'present' || s.present === true) { statusText = "PRESENÇA"; color = "green"; }
-                else if(s.status === 'justified') { statusText = "JUSTIFICADA"; color = "orange"; }
+                const status = s.status || (s.present ? 'present' : 'absent');
+                
+                if (isHistory) {
+                    // Modo de edição ativa para chamadas do histórico
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="color: black !important; font-weight: 500;">
+                            ${s.name}
+                            ${status === 'justified' ? `
+                                <br><input type="text" class="justification-input" placeholder="Justificativa..." value="${s.justification || ''}" onchange="updateHistoryStudentJustification('${s.name}', this.value)">
+                            ` : ''}
+                        </td>
+                        <td style="text-align:center">
+                            <div class="badge-group">
+                                <button class="badge badge-present ${status === 'present' ? 'active' : ''}" onclick="updateHistoryStudentStatus('${s.name}', 'present')">P</button>
+                                <button class="badge badge-absent ${status === 'absent' ? 'active' : ''}" onclick="updateHistoryStudentStatus('${s.name}', 'absent')">F</button>
+                                <button class="badge badge-justified ${status === 'justified' ? 'active' : ''}" onclick="updateHistoryStudentStatus('${s.name}', 'justified')">J</button>
+                            </div>
+                        </td>
+                        <td style="color: #555; font-size: 0.9rem; font-weight: 500;">
+                            ${status === 'present' ? 'Presença' : (status === 'justified' ? 'Justificada' : 'Falta')}
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                } else {
+                    // Visualização estática simples para visualização atual de rascunho
+                    let statusText = "FALTA";
+                    let color = "red";
+                    if(status === 'present') { statusText = "PRESENÇA"; color = "green"; }
+                    else if(status === 'justified') { statusText = "JUSTIFICADA"; color = "orange"; }
 
-                tbody.innerHTML += `
-                    <tr>
-                        <td style="color: black !important;">${s.name}</td>
-                        <td style="color: ${color}; font-weight: bold">${statusText}</td>
-                        <td style="color: #666; font-size: 0.8rem">${s.justification || '-'}</td>
-                    </tr>`;
+                    tbody.innerHTML += `
+                        <tr>
+                            <td style="color: black !important;">${s.name}</td>
+                            <td style="color: ${color}; font-weight: bold">${statusText}</td>
+                            <td style="color: #666; font-size: 0.8rem">${s.justification || '-'}</td>
+                        </tr>`;
+                }
             });
         };
 
